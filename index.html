@@ -142,8 +142,8 @@ function render(P,A,showAll){
   if(!list.length)h+='<tr><td colspan="3"><span class="tag t-ok">Semua tanggal aman</span></td></tr>';
   list.forEach(function(x){
     var t="";
-    x.dup.forEach(function(g){t+='<div><span class="tag t-bad">Dobel '+esc(g.k)+'</span>'+esc(g.who.join(", "))+'</div>'});
-    x.miss.forEach(function(k){t+='<div><span class="tag t-bad">Kosong '+esc(k)+'</span></div>'});
+    x.dup.forEach(function(g){t+='<div><span class="tag '+(/A$/.test(g.k)?'t-ok':'t-bad')+'">Dobel '+esc(g.k)+'</span>'+esc(g.who.join(", "))+'</div>'});
+    x.miss.forEach(function(k){t+='<div><span class="tag '+(/A$/.test(k)?'t-ok':'t-bad')+'">Kosong '+esc(k)+'</span></div>'});
     if(!t)t='<span class="tag t-ok">Aman</span>';
     h+='<tr><td><b>'+x.d+'</b></td><td>'+esc(x.hari)+'</td><td>'+t+'</td></tr>';
   });
