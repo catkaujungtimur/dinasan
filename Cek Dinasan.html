@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cek Dinasan</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#5c6670;--bd:#d9dee4;--ac:#1f5fbf;--ok:#1a7f45;--okb:#e3f5ea;--bad:#b42318;--badb:#fdeceb;--warn:#8a5a00;--warnb:#fff3d6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15181c;--card:#1f2328;--tx:#e8ebef;--mut:#9aa4ae;--bd:#343b43;--ac:#6ea8ff;--ok:#5fd28b;--okb:#17301f;--bad:#ff8a80;--badb:#3a1c1a;--warn:#f1c25c;--warnb:#3a2e12}}
+:root[data-theme="dark"]{--bg:#15181c;--card:#1f2328;--tx:#e8ebef;--mut:#9aa4ae;--bd:#343b43;--ac:#6ea8ff;--ok:#5fd28b;--okb:#17301f;--bad:#ff8a80;--badb:#3a1c1a;--warn:#f1c25c;--warnb:#3a2e12}
+html{color-scheme:light dark;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}
+p.sub{color:var(--mut);margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+textarea{width:100%;min-height:150px;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px;font:12px/1.4 ui-monospace,Consolas,monospace;resize:vertical}
+label{display:block;font-weight:600;margin-bottom:6px}
+input[type=text]{width:100%;box-sizing:border-box;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:8px;font:13px ui-monospace,Consolas,monospace}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+button{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:15px;font-weight:600;cursor:pointer}
+button.sec{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+.sum{display:flex;gap:10px;flex-wrap:wrap}
+.pill{flex:1;min-width:120px;border-radius:10px;padding:10px 12px}
+.pill b{display:block;font-size:24px}
+.p-ok{background:var(--okb);color:var(--ok)}.p-bad{background:var(--badb);color:var(--bad)}.p-warn{background:var(--warnb);color:var(--warn)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bd);vertical-align:top}
+th{color:var(--mut);font-weight:600}
+.tag{display:inline-block;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700;margin:0 4px 2px 0}
+.t-bad{background:var(--badb);color:var(--bad)}.t-ok{background:var(--okb);color:var(--ok)}.t-warn{background:var(--warnb);color:var(--warn)}
+small{color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<h1>Cek Dinasan</h1>
+<p class="sub">Tempel roster dari Google Sheets, lalu klik Cek. Data hanya diproses di browser ini dan tidak dikirim ke mana pun.</p>
+
+<div class="card">
+<label for="inp">1. Tempel tabel roster (dari baris tanggal sampai baris terakhir)</label>
+<textarea id="inp" placeholder="Blok tabel di Google Sheets, Ctrl+C, lalu Ctrl+V di sini"></textarea>
+<label for="req" style="margin-top:12px">2. Kode yang wajib ada setiap hari <small>(pisahkan dengan koma)</small></label>
+<input type="text" id="req" value="6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,18A,19A,20A">
+<div class="row">
+<button id="go">Cek</button>
+<button class="sec" id="clr">Bersihkan</button>
+<label style="margin:0;font-weight:400"><input type="checkbox" id="all"> tampilkan semua tanggal</label>
+</div>
+</div>
+
+<div id="out"></div>
+</main>
+
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+var LABELS=/^(PRS|PLR|PPKA|CPLR|CPRS|PPKW)$/;
+var SHIFT=/^\d+A?$/;
+var NOCOUNT_DUP={"33":1};
+
+function parse(text){
+  var rows=text.replace(/\r/g,"").split("\n").map(function(l){
+    return l.split("\t").map(function(c){return c.trim().replace(/^"|"$/g,"").toUpperCase()});
+  });
+  var hi=-1,off=5,n=0;
+  for(var r=0;r<rows.length&&hi<0;r++){
+    var row=rows[r];
+    for(var i=0;i<row.length-1;i++){
+      if(row[i]==="1"&&row[i+1]==="2"){hi=r;off=i;break}
+    }
+  }
+  var names=[];
+  if(hi>=0){
+    var k=off;
+    while(k<rows[hi].length&&rows[hi][k]===String(k-off+1)){n++;k++}
+    var nx=rows[hi+1]||[];
+    for(var d=0;d<n;d++){var v=nx[off+d]||"";names.push(/^\d+$/.test(v)?"":v)}
+  }
+  var people=[];
+  for(var r2=hi+1;r2<rows.length;r2++){
+    var c=rows[r2];
+    if(/^\d+$/.test(c[0]||"")&&c[1]){people.push({no:c[0],nama:c[1],cells:c})}
+  }
+  if(!n){
+    var mx=0;people.forEach(function(p){if(p.cells.length-off>mx)mx=p.cells.length-off});
+    n=Math.min(mx,31);
+  }
+  return{people:people,off:off,n:n,names:names,hasHeader:hi>=0};
+}
+
+function analyze(P,required){
+  var days=[];
+  for(var d=0;d<P.n;d++)days.push({d:d+1,hari:P.names[d]||"",map:{}});
+  var blanks=[],other={};
+  P.people.forEach(function(p){
+    var inSpan=false;
+    for(var d=0;d<P.n;d++){
+      var v=p.cells[P.off+d]||"";
+      if(LABELS.test(v)){inSpan=true;continue}
+      if(v===""){
+        if(inSpan)continue;
+        blanks.push(p.nama+" (tgl "+(d+1)+")");continue;
+      }
+      inSpan=false;
+      if(SHIFT.test(v)){
+        (days[d].map[v]=days[d].map[v]||[]).push(p.nama);
+      }else{
+        other[v]=(other[v]||0)+1;
+      }
+    }
+  });
+  var res=days.map(function(D){
+    var dup=[],miss=[];
+    Object.keys(D.map).forEach(function(k){
+      if(D.map[k].length>1&&!NOCOUNT_DUP[k])dup.push({k:k,who:D.map[k]});
+    });
+    required.forEach(function(k){if(!D.map[k])miss.push(k)});
+    dup.sort(function(a,b){return a.k.localeCompare(b.k,undefined,{numeric:true})});
+    return{d:D.d,hari:D.hari,dup:dup,miss:miss};
+  });
+  return{res:res,blanks:blanks,other:other};
+}
+
+function render(P,A,showAll){
+  var bad=A.res.filter(function(x){return x.dup.length||x.miss.length});
+  var nd=0,nm=0;
+  A.res.forEach(function(x){nd+=x.dup.length;nm+=x.miss.length});
+  var h='<div class="card"><div class="sum">'+
+   '<div class="pill '+(bad.length?'p-bad':'p-ok')+'"><b>'+bad.length+'</b>tanggal bermasalah dari '+P.n+'</div>'+
+   '<div class="pill '+(nd?'p-bad':'p-ok')+'"><b>'+nd+'</b>kode dobel</div>'+
+   '<div class="pill '+(nm?'p-bad':'p-ok')+'"><b>'+nm+'</b>kode kosong</div>'+
+   '</div>';
+  if(!P.hasHeader)h+='<p><small>Baris tanggal (1, 2, 3 …) tidak ditemukan, jadi dianggap kolom tanggal mulai dari kolom ke-6. Sertakan baris tanggal saat menyalin agar lebih akurat.</small></p>';
+  h+='</div>';
+
+  var list=showAll?A.res:bad;
+  h+='<div class="card"><div class="tw"><table><thead><tr><th>Tgl</th><th>Hari</th><th>Hasil</th></tr></thead><tbody>';
+  if(!list.length)h+='<tr><td colspan="3"><span class="tag t-ok">Semua tanggal aman</span></td></tr>';
+  list.forEach(function(x){
+    var t="";
+    x.dup.forEach(function(g){t+='<div><span class="tag t-bad">Dobel '+esc(g.k)+'</span>'+esc(g.who.join(", "))+'</div>'});
+    x.miss.forEach(function(k){t+='<div><span class="tag t-bad">Kosong '+esc(k)+'</span></div>'});
+    if(!t)t='<span class="tag t-ok">Aman</span>';
+    h+='<tr><td><b>'+x.d+'</b></td><td>'+esc(x.hari)+'</td><td>'+t+'</td></tr>';
+  });
+  h+='</tbody></table></div></div>';
+
+  if(A.blanks.length){
+    h+='<div class="card"><b>Sel kosong tak terduga</b> <small>(bukan bagian dari blok wakilan)</small><p>'+
+      A.blanks.slice(0,60).map(function(b){return '<span class="tag t-warn">'+esc(b)+'</span>'}).join(" ")+
+      (A.blanks.length>60?' <small>… dan '+(A.blanks.length-60)+' lainnya</small>':'')+'</p></div>';
+  }
+  var ok=Object.keys(A.other);
+  if(ok.length){
+    h+='<div class="card"><b>Kode non-dinas yang diabaikan</b><p>'+
+      ok.map(function(k){return '<span class="tag t-ok">'+esc(k)+' ×'+A.other[k]+'</span>'}).join(" ")+
+      '</p><small>Contoh: L = libur, CT = cuti, R = rest. Kode seperti BSA, BKS, JR juga tidak dihitung sebagai dinas.</small></div>';
+  }
+  $("out").innerHTML=h;
+}
+
+function run(){
+  var txt=$("inp").value;
+  if(!txt.trim()){$("out").innerHTML='<div class="card"><span class="tag t-warn">Kotak masih kosong. Tempel roster dulu.</span></div>';return}
+  var P=parse(txt);
+  if(!P.people.length){$("out").innerHTML='<div class="card"><span class="tag t-warn">Baris pegawai tidak terbaca. Pastikan kolom NO dan NAMA ikut tersalin.</span></div>';return}
+  var req=$("req").value.split(",").map(function(s){return s.trim().toUpperCase()}).filter(Boolean);
+  render(P,analyze(P,req),$("all").checked);
+}
+$("go").onclick=run;
+$("all").onchange=function(){if($("inp").value.trim())run()};
+$("clr").onclick=function(){$("inp").value="";$("out").innerHTML=""};
+})();
+</script>
+</body>
+</html>
