@@ -32,10 +32,14 @@ th{color:var(--mut);font-weight:600}
 .tag{display:inline-block;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700;margin:0 4px 2px 0}
 .t-bad{background:var(--badb);color:var(--bad)}.t-ok{background:var(--okb);color:var(--ok)}.t-warn{background:var(--warnb);color:var(--warn)}
 small{color:var(--mut)}
+.home{display:inline-flex;align-items:center;gap:6px;margin:0 0 14px;padding:7px 14px;border:1px solid var(--ac);border-radius:8px;color:var(--ac);font-weight:600;font-size:14px;text-decoration:none}
+.home:hover{background:var(--ac);color:#fff}
+.home svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 </style>
 </head>
 <body>
 <main>
+<a class="home" href="https://catkaujungtimur.github.io/home/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>Home</a>
 <h1>Cek Dinasan</h1>
 <p class="sub">Tempel roster dari Google Sheets, lalu klik Cek. Data hanya diproses di browser ini dan tidak dikirim ke mana pun.</p>
 
@@ -176,6 +180,5 @@ $("all").onchange=function(){if($("inp").value.trim())run()};
 $("clr").onclick=function(){$("inp").value="";$("out").innerHTML=""};
 })();
 </script>
-<script src="https://catkaujungtimur.github.io/home/home-button.js"></script>
 </body>
 </html>
