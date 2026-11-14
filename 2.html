@@ -78,6 +78,16 @@ table.g{border-collapse:separate;border-spacing:0;width:auto;font-size:12px}
 .g td.c.dup{box-shadow:inset 0 0 0 3px var(--bad)}
 .g tr.sec td{background:var(--bd);font-weight:700;height:24px;font-size:12px;text-align:left;padding-left:8px}
 .g tr.sec td.s0{background:var(--bd)}
+.g td.s0[data-r]{cursor:pointer}
+.g td.c:empty::after{content:"\00b7";color:var(--mut);opacity:.45}
+.g td.c.sel{background-image:linear-gradient(rgba(31,95,191,.38),rgba(31,95,191,.38))}
+.g td.c.anc{outline:2px solid var(--ac);outline-offset:-2px}
+.g thead th.ac{right:0;z-index:5;min-width:84px;background:var(--card);color:var(--mut)}
+.g td.ac{position:sticky;right:0;z-index:2;background:var(--card);min-width:84px;padding:2px 4px;border-left:1px solid var(--bd)}
+.autob{padding:4px 8px;font-size:11px;border-radius:6px}
+#bauto{position:fixed;z-index:60;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:8px;box-shadow:0 6px 24px rgba(0,0,0,.28);display:flex;flex-direction:column;gap:6px;min-width:160px}
+#bauto b{font-size:12px;color:var(--mut);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#bauto button{padding:8px 12px;font-size:14px;text-align:left}
 </style>
 </head>
 <body>
@@ -101,6 +111,7 @@ table.g{border-collapse:separate;border-spacing:0;width:auto;font-size:12px}
 <input type="text" id="req" value="6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,18A,19A,20A">
 <div class="row">
 <button id="go">Cek</button>
+<button class="sec" id="edt">Edit</button>
 <button class="sec" id="clr">Bersihkan</button>
 <label style="margin:0;font-weight:400"><input type="checkbox" id="all"> tampilkan semua tanggal</label>
 </div>
@@ -140,7 +151,7 @@ table.g{border-collapse:separate;border-spacing:0;width:auto;font-size:12px}
 <input type="number" id="byear" min="2000" max="2100" style="width:84px;padding:7px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:14px">
 <button class="sec" id="bapply" type="button">Buat ulang</button>
 </div>
-<p style="margin:12px 0 6px"><small>Cara 1: tap sel lalu ketik kodenya langsung. Cara 2: pilih kode di bawah sebagai kuas, lalu tap (atau geser dengan mouse) sel untuk mengisinya. Klik kode yang sama lagi untuk mematikan kuas.</small></p>
+<p style="margin:12px 0 6px"><small>Cara 1: klik/tap sel lalu ketik kodenya (klik dua kali atau Enter untuk mengubah isi yang ada). Cara 2: pilih kode di bawah sebagai kuas, lalu tap (atau geser dengan mouse) sel untuk mengisinya. Klik kode yang sama lagi untuk mematikan kuas.</small></p>
 <div class="chips" id="bpal"></div>
 <p style="margin:10px 0 0" id="bbrush"></p>
 <div class="row">
@@ -149,6 +160,12 @@ table.g{border-collapse:separate;border-spacing:0;width:auto;font-size:12px}
 <button id="bcopy" type="button">Salin ke Sheets</button>
 <button class="sec" id="bto1" type="button">Cek di tab Cek Dinasan</button>
 </div>
+<div class="row">
+<button class="sec" id="bblok" type="button">Mode blok: mati</button>
+<button class="sec" id="bend" type="button">Perluas blok sampai akhir bulan</button>
+<button class="sec" id="bdel" type="button">Hapus terpilih</button>
+</div>
+<p style="margin:8px 0 0"><small>Hapus massal: geser mouse di atas sel (atau klik sel lalu Shift+klik, atau pakai Mode blok di layar sentuh), lalu tekan Delete atau tombol Hapus terpilih. Klik nama untuk memblok satu baris. Setelah sel dikosongkan, klik <b>Otomatis</b> di ujung kanan baris untuk mengisi sel yang kosong.</small></p>
 </div>
 
 <div class="card">
@@ -297,7 +314,7 @@ var MON=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","Sep
 var FIXJ=[[/^KSB$/,"1"],[/^WKSB$/,"2"],[/SPV\s*PERKA/,"3"],[/SPV\s*PELKOM/,"4"],[/SPV\s*CC/,"5"]];
 var CHIPS=[["L","L","Libur"],["CT","CT","Cuti"],["S","S","Sakit"],["SOE","SOE","Safety Operation Engagement"],["BKS","BKS","Sertifikasi Bekasi"],["JOCUP","JOCUP","JOCUP"],["DIKLAT PENGENDALI","DIKLAT","Diklat Pengendali"],["R","R","Rest / istirahat"],["PRS","PRS","Dinas wakilan PRS"],["PLR","PLR","Dinas wakilan PLR"]];
 
-var S=null,brush=null,pip=false,drag=false,skipClick=false,sp=false;
+var S=null,brush=null,pip=false,drag=false,skipClick=false,sp=false,selDrag=false,blokMode=false,blokStep=0,menu=null;
 
 /* ---------- tab ---------- */
 function showTab(i){
@@ -309,6 +326,12 @@ function showTab(i){
 }
 $("tb1").onclick=function(){showTab(1)};
 $("tb2").onclick=function(){showTab(2)};
+$("edt").onclick=function(){
+  $("binp").value=$("inp").value;
+  showTab(2);
+  $("bedit").click();
+  try{window.scrollTo(0,0)}catch(x){}
+};
 
 /* ---------- util ---------- */
 function known(v){return v==="L"||SHIFT.test(v)}
@@ -443,7 +466,7 @@ function planPair(a,b,P,m){
 /* ---------- state ---------- */
 function snap(){return JSON.stringify(S.rows.map(function(r){return r.type==="p"?[r.vals,r.flags]:0}))}
 function mkState(mode,P,names,rows,n,notes,title){
-  S={mode:mode,P:P,n:n,names:names,rows:rows,notes:notes||[],title:title,hist:[],tds:[],ths:[]};
+  S={mode:mode,P:P,n:n,names:names,rows:rows,notes:notes||[],title:title,hist:[],tds:[],ths:[],sel:null};
   S.init=snap();
 }
 function makeEdit(P,src){
@@ -500,15 +523,15 @@ function buildGrid(){
     var nm=S.names[d]||"";
     h+='<th class="dh'+(nm==="MG"?' mg':'')+'"><b>'+(d+1)+'</b><small>'+esc(nm)+'</small></th>';
   }
-  h+='</tr></thead><tbody>';
+  h+='<th class="ac">Otomatis</th></tr></thead><tbody>';
   S.rows.forEach(function(r,ri){
     if(r.type==="sec"){
-      h+='<tr class="sec"><td class="s0">'+esc(r.label)+'</td><td colspan="'+n+'"></td></tr>';return;
+      h+='<tr class="sec"><td class="s0">'+esc(r.label)+'</td><td colspan="'+(n+1)+'"></td></tr>';return;
     }
     var jab=r.cells[S.P.jabIdx]||"";
-    h+='<tr><td class="s0"><div><b>'+esc(r.cells[0]||"")+'</b>'+esc(r.cells[1]||"")+'</div><small>'+esc(jab)+'</small></td>';
+    h+='<tr><td class="s0" data-r="'+ri+'"><div><b>'+esc(r.cells[0]||"")+'</b>'+esc(r.cells[1]||"")+'</div><small>'+esc(jab)+'</small></td>';
     for(var d2=0;d2<n;d2++)h+='<td class="c" data-r="'+ri+'" data-d="'+d2+'"></td>';
-    h+='</tr>';
+    h+='<td class="ac"><button type="button" class="autob" data-r="'+ri+'">Otomatis</button></td></tr>';
   });
   h+='</tbody></table>';
   $("bgrid").innerHTML=h;
@@ -523,7 +546,7 @@ function buildGrid(){
 function fxOf(r){return fixedFor(r.cells[S.P.jabIdx]||"")}
 function paint(ri,d){
   var r=S.rows[ri],td=S.tds[ri][d],v=r.vals[d];
-  td.className="c "+cellCls(v,fxOf(r))+(r.flags[d]?" q":"");
+  td.className="c "+cellCls(v,fxOf(r))+(r.flags[d]?" q":"")+(inSel(ri,d)?" sel":"")+(S.sel&&S.sel.ar===ri&&S.sel.ad===d?" anc":"");
   td.textContent=lab(v);td.title=v;
 }
 function paintAll(){
@@ -613,7 +636,7 @@ function syncPal(){
   });
   var t;
   if(pip)t='<small>Mode ambil: tap sebuah sel untuk menyalin isinya jadi kuas.</small>';
-  else if(brush===null)t='<small>Tidak ada kuas: tap sebuah sel untuk mengetik kodenya langsung (Enter = turun, Tab = kanan, Esc = batal).</small>';
+  else if(brush===null)t='<small>Tidak ada kuas: klik sel lalu ketik kodenya (Enter = turun, Tab = kanan, Esc = batal). Geser mouse untuk memblok, Delete untuk menghapus.</small>';
   else if(brush==="")t='Kuas aktif: <span class="pv">kosongkan</span>';
   else t='Kuas aktif: <span class="pv '+cellCls(brush,null)+'">'+esc(lab(brush))+'</span>';
   $("bbrush").innerHTML=t;
@@ -624,11 +647,153 @@ function restore(str){
   S.rows.forEach(function(r,i){if(r.type==="p"){r.vals=a[i][0];r.flags=a[i][1]}});
   paintAll();refresh();
 }
-function startEdit(td){
+/* ---------- seleksi blok ---------- */
+function selBox(){
+  if(!S||!S.sel)return null;
+  var q=S.sel;
+  return{r1:Math.min(q.ar,q.fr),r2:Math.max(q.ar,q.fr),d1:Math.min(q.ad,q.fd),d2:Math.max(q.ad,q.fd)};
+}
+function inSel(ri,d){
+  var b=selBox();return !!b&&ri>=b.r1&&ri<=b.r2&&d>=b.d1&&d<=b.d2;
+}
+function paintBox(b){
+  if(!b)return;
+  for(var ri=b.r1;ri<=b.r2;ri++){
+    var r=S.rows[ri];if(!r||r.type!=="p")continue;
+    for(var d=b.d1;d<=b.d2;d++)paint(ri,d);
+  }
+}
+function setSel(ar,ad,fr,fd){
+  var old=selBox();
+  S.sel={ar:ar,ad:ad,fr:fr,fd:fd};
+  paintBox(old);paintBox(selBox());
+}
+function clearSel(){var old=selBox();S.sel=null;paintBox(old)}
+function moveSel(dr,dd,ext){
+  var q=S.sel;if(!q)return;
+  var nr=q.fr,nd=q.fd+dd;
+  if(dr){do{nr+=dr}while(S.rows[nr]&&S.rows[nr].type!=="p")}
+  if(!S.rows[nr]||nd<0||nd>=S.n)return;
+  if(ext)setSel(q.ar,q.ad,nr,nd);else setSel(nr,nd,nr,nd);
+  var td=S.tds[nr]&&S.tds[nr][nd];
+  if(td&&td.scrollIntoView)td.scrollIntoView({block:"nearest",inline:"nearest"});
+}
+function clearSelCells(){
+  var b=selBox();
+  if(!b){msg("Blok sel dulu: geser mouse di atas sel, atau klik sel lalu Shift+klik.");return}
+  push();var any=false;
+  for(var ri=b.r1;ri<=b.r2;ri++){
+    var r=S.rows[ri];if(!r||r.type!=="p")continue;
+    for(var d=b.d1;d<=b.d2;d++){if(r.vals[d]!==""||r.flags[d]){r.vals[d]="";r.flags[d]=false;any=true}}
+  }
+  if(!any){S.hist.pop();return}
+  msg("");paintBox(b);refresh();
+}
+function selTap(td){
+  var ri=+td.getAttribute("data-r"),d=+td.getAttribute("data-d");
+  if(blokMode){
+    if(blokStep===1&&S.sel){setSel(S.sel.ar,S.sel.ad,ri,d);blokStep=0}
+    else{setSel(ri,d,ri,d);blokStep=1}
+    return;
+  }
+  startEdit(td);
+}
+function syncBlok(){
+  var b=$("bblok");if(!b)return;
+  b.textContent="Mode blok: "+(blokMode?"hidup":"mati");
+  b.style.background=blokMode?"var(--ac)":"transparent";
+  b.style.color=blokMode?"#fff":"var(--ac)";
+}
+
+/* ---------- otomatis ---------- */
+var GROUPS=[["6","7","8"],["9","10","11"],["12","13","14"],["15","16","17"],["18","19","20"],["18A","19A","20A"]];
+function grpOf(code){
+  for(var i=0;i<GROUPS.length;i++){var k=GROUPS[i].indexOf(code);if(k>=0)return{g:GROUPS[i],role:k}}
+  return null;
+}
+/* urutan GROUPS tiap kelompok: [pagi, siang, malam]; setelah libur selalu mulai dari malam */
+function autoFill(ri,mode){
+  var r=S.rows[ri],n=S.n,vals=r.vals,lim=(mode==="31"?3:6),cnt=0,d,i;
+  function nearGrp(at){
+    var j,g;
+    for(j=at;j>=0;j--){g=grpOf(vals[j]);if(g)return g.g}
+    for(j=at+1;j<n;j++){g=grpOf(vals[j]);if(g)return g.g}
+    return null;
+  }
+  function nearShift(at){
+    var j;
+    for(j=at;j>=0;j--)if(SHIFT.test(vals[j]))return vals[j];
+    for(j=at+1;j<n;j++)if(SHIFT.test(vals[j]))return vals[j];
+    return "";
+  }
+  for(d=0;d<n;d++){
+    if(vals[d]!=="")continue;
+    var nv="";
+    if(mode==="same"){
+      nv=nearShift(d-1);
+    }else{
+      var prev=d>0?vals[d-1]:"",pg=grpOf(prev),g=nearGrp(d-1);
+      if(!g)break;
+      if(pg){
+        if(pg.role===2)nv=pg.g[1];
+        else if(pg.role===1)nv=pg.g[0];
+        else{
+          var run=0;i=d-1;
+          while(i>=0&&SHIFT.test(vals[i])){run++;i--}
+          if(i<0){var f=grpOf(vals[0]);if(f)run+=(2-f.role)}
+          nv=(run>=lim)?"L":pg.g[2];
+        }
+      }else nv=g[2];
+    }
+    if(nv==="")break;
+    vals[d]=nv;r.flags[d]=false;cnt++;
+  }
+  return cnt;
+}
+function closeMenu(){if(menu&&menu.parentNode)menu.parentNode.removeChild(menu);menu=null}
+function openMenu(btn){
+  closeMenu();
+  var ri=+btn.getAttribute("data-r");
+  menu=document.createElement("div");menu.id="bauto";
+  menu.innerHTML='<b>'+esc(S.rows[ri].cells[1]||"")+'</b>'+
+    '<button type="button" data-m="31">Dinasan 3-1</button>'+
+    '<button type="button" data-m="61">Dinasan 6-1</button>'+
+    '<button type="button" data-m="same">Sama semua</button>';
+  document.body.appendChild(menu);
+  var rc=btn.getBoundingClientRect(),mw=menu.offsetWidth||170,mh=menu.offsetHeight||150;
+  var left=Math.max(8,Math.min(rc.right-mw,(window.innerWidth||800)-mw-8));
+  var top=rc.bottom+4;
+  if(top+mh>(window.innerHeight||600)-8)top=Math.max(8,rc.top-mh-4);
+  menu.style.left=left+"px";menu.style.top=top+"px";
+  menu.onclick=function(e){
+    var b=e.target.closest?e.target.closest("button"):null;if(!b)return;
+    var m=b.getAttribute("data-m");closeMenu();runAuto(ri,m);
+  };
+}
+function runAuto(ri,mode){
+  var r=S.rows[ri],nm=r.cells[1]||"",lbl=(mode==="31"?"pola 3-1":mode==="61"?"pola 6-1":"sama semua");
+  var empty=0;for(var d=0;d<S.n;d++)if(r.vals[d]==="")empty++;
+  if(!empty){msg("Baris "+nm+": tidak ada sel kosong. Blok dan hapus sel yang mau diisi ulang dulu.");return}
+  push();
+  var c=autoFill(ri,mode);
+  if(!c){
+    S.hist.pop();
+    msg("Baris "+nm+": belum ada sel berisi kode dinas sebagai acuan. Isi satu sel dulu (mis. 11), lalu klik Otomatis lagi.");
+    return;
+  }
+  for(var d2=0;d2<S.n;d2++)paint(ri,d2);
+  msg("Baris "+nm+": "+c+" sel kosong terisi ("+lbl+").","t-ok");
+  refresh();
+}
+
+/* ---------- edit sel langsung ---------- */
+function startEdit(td,initial){
   if(td.querySelector("input"))return;
   var ri=+td.getAttribute("data-r"),d=+td.getAttribute("data-d"),r=S.rows[ri];
-  var inp=document.createElement("input");inp.type="text";inp.value=r.vals[d];inp.setAttribute("autocapitalize","characters");
-  td.textContent="";td.appendChild(inp);inp.focus();inp.select();
+  setSel(ri,d,ri,d);
+  var inp=document.createElement("input");inp.type="text";inp.value=(initial!==undefined?initial:r.vals[d]);inp.setAttribute("autocapitalize","characters");
+  td.textContent="";td.appendChild(inp);inp.focus();
+  if(initial!==undefined){try{inp.setSelectionRange(inp.value.length,inp.value.length)}catch(x){}}else inp.select();
   var done=false;
   function finish(save,mx,my){
     if(done)return;done=true;
@@ -656,7 +821,7 @@ function apply(td){
   if(!S)return;
   var ri=+td.getAttribute("data-r"),d=+td.getAttribute("data-d"),r=S.rows[ri];
   if(pip){brush=r.vals[d];pip=false;$("bcus").value="";syncPal();return}
-  if(brush===null){startEdit(td);return}
+  if(brush===null){selTap(td);return}
   if(r.vals[d]===brush&&!r.flags[d])return;
   if(!sp){push();sp=true}
   r.vals[d]=brush;r.flags[d]=false;
@@ -691,7 +856,7 @@ function showWork(){
   $("bmode").textContent=S.title;
   $("bnextbar").hidden=(S.mode!=="next");
   brush=null;pip=false;$("bcus").value="";syncPal();
-  buildGrid();refresh();renderNotes();
+  closeMenu();blokMode=false;blokStep=0;syncBlok();buildGrid();refresh();renderNotes();
 }
 function getP(){
   var txt=$("binp").value;
@@ -726,7 +891,7 @@ $("bapply").onclick=function(){
   if(!(y>=2000&&y<=2100)){msg("Tahun tidak valid.");return}
   msg("");makeNext(S.P,y,m);showWork();
 };
-$("bclr").onclick=function(){
+$("bclr").onclick=function(){closeMenu();
   $("binp").value="";S=null;$("bwork").hidden=true;$("bgrid").innerHTML="";$("bres").innerHTML="";$("bnotes").innerHTML="";msg("");
 };
 $("bundo").onclick=function(){if(S&&S.hist.length)restore(S.hist.pop())};
@@ -769,24 +934,68 @@ $("bto1").onclick=function(){
   $("bmon").innerHTML=o;
   buildPal();syncPal();
   var g=$("bgrid");
+  function cellOf(e){return e.target&&e.target.closest?e.target.closest("td.c"):null}
   g.addEventListener("pointerdown",function(e){
-    skipClick=(e.pointerType==="mouse"&&(brush!==null||pip));
-    if(!skipClick)return;
-    var td=e.target.closest?e.target.closest("td.c"):null;if(!td)return;
-    drag=true;apply(td);e.preventDefault();
+    skipClick=false;
+    if(!S||e.target.tagName==="INPUT")return;
+    var td=cellOf(e);if(!td||e.pointerType!=="mouse")return;
+    var ae=document.activeElement;
+    if(ae&&ae.tagName==="INPUT"&&g.contains(ae))ae.blur();
+    skipClick=true;
+    if(brush!==null||pip){drag=true;apply(td);e.preventDefault();return}
+    var ri=+td.getAttribute("data-r"),d=+td.getAttribute("data-d");
+    if(e.shiftKey&&S.sel)setSel(S.sel.ar,S.sel.ad,ri,d);else setSel(ri,d,ri,d);
+    selDrag=true;e.preventDefault();
   });
   g.addEventListener("pointerover",function(e){
-    if(!drag||e.pointerType!=="mouse")return;
-    var td=e.target.closest?e.target.closest("td.c"):null;if(td)apply(td);
+    if(!S||e.pointerType!=="mouse")return;
+    var td=cellOf(e);if(!td)return;
+    if(drag)apply(td);
+    else if(selDrag&&S.sel)setSel(S.sel.ar,S.sel.ad,+td.getAttribute("data-r"),+td.getAttribute("data-d"));
   });
   g.addEventListener("click",function(e){
+    if(!S)return;
+    var ab=e.target.closest?e.target.closest(".autob"):null;
+    if(ab){openMenu(ab);return}
+    var nmc=e.target.closest?e.target.closest("td.s0[data-r]"):null;
+    if(nmc){var rr=+nmc.getAttribute("data-r");setSel(rr,0,rr,S.n-1);return}
     if(skipClick){skipClick=false;return}
-    var td=e.target.closest?e.target.closest("td.c"):null;if(!td)return;
+    var td=cellOf(e);if(!td)return;
     apply(td);sp=false;
   });
-  var stop=function(){drag=false;sp=false};
+  g.addEventListener("dblclick",function(e){
+    var td=cellOf(e);
+    if(S&&td&&brush===null&&!pip&&e.target.tagName!=="INPUT")startEdit(td);
+  });
+  var stop=function(){drag=false;sp=false;selDrag=false};
   document.addEventListener("pointerup",stop);
   document.addEventListener("pointercancel",stop);
+  document.addEventListener("pointerdown",function(e){
+    if(menu&&!menu.contains(e.target)&&!(e.target.classList&&e.target.classList.contains("autob")))closeMenu();
+  });
+  $("bblok").onclick=function(){blokMode=!blokMode;blokStep=0;syncBlok()};
+  $("bdel").onclick=function(){if(S)clearSelCells()};
+  $("bend").onclick=function(){
+    if(!S)return;
+    if(!S.sel){msg("Pilih sel dulu, lalu perluas sampai akhir bulan.");return}
+    setSel(S.sel.ar,S.sel.ad,S.sel.fr,S.n-1);
+  };
+  syncBlok();
+  document.addEventListener("keydown",function(e){
+    if(!S||$("tab2").hidden||!S.sel)return;
+    var t=e.target,tag=t&&t.tagName;
+    if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT"||tag==="BUTTON"||tag==="A")return;
+    if(e.ctrlKey||e.metaKey||e.altKey)return;
+    var k=e.key,ed=function(ini){var td=S.tds[S.sel.ar]&&S.tds[S.sel.ar][S.sel.ad];if(td)startEdit(td,ini)};
+    if(k==="Delete"||k==="Backspace"){e.preventDefault();clearSelCells()}
+    else if(k==="ArrowUp"){e.preventDefault();moveSel(-1,0,e.shiftKey)}
+    else if(k==="ArrowDown"){e.preventDefault();moveSel(1,0,e.shiftKey)}
+    else if(k==="ArrowLeft"){e.preventDefault();moveSel(0,-1,e.shiftKey)}
+    else if(k==="ArrowRight"){e.preventDefault();moveSel(0,1,e.shiftKey)}
+    else if(k==="Enter"||k==="F2"){e.preventDefault();ed()}
+    else if(k==="Escape"){clearSel();closeMenu()}
+    else if(k.length===1){e.preventDefault();ed(k.toUpperCase())}
+  });
 })();
 })();
 </script>
