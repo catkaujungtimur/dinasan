@@ -763,13 +763,11 @@ function autoFill(ri,mode){
   return cnt;
 }
 /* ---------- bisa dinas ---------- */
-var POS=[["1","KEPALA STASIUN"],["2","WAKIL KEPALA STASIUN"],["3","SPV PERKA"],["4","SPV PELKOM"],["5","SPV CC"],
-["6","PPKA PAGI"],["7","PPKA SIANG"],["8","PPKA MALAM"],["9","PRS A PAGI"],["10","PRS A SIANG"],["11","PRS A MALAM"],
-["12","PRS B PAGI"],["13","PRS B SIANG"],["14","PRS B MALAM"],["15","PLR 1 PAGI"],["16","PLR 1 SIANG"],["17","PLR 1 MALAM"],
-["18","PLR 2 PAGI"],["19","PLR 2 SIANG"],["20","PLR 2 MALAM"],["21","ADM PAGI"],["22","ADM SIANG"],["23","ADM MALAM"],["33","PPKW"],
-["12A","PRS B PAGI MELOPEN"],["13A","PRS B SIANG MELOPEN"],["14A","PRS B MALAM MELOPEN"],
-["18A","PLR 2 PAGI MELOPEN"],["19A","PLR 2 SIANG MELOPEN"],["20A","PLR 2 MALAM MELOPEN"]];
 function range(a,b){var o=[];for(var i=a;i<=b;i++)o.push(String(i));return o}
+/* posisi: memilih satu posisi otomatis berarti bisa dinas pagi, siang, dan malamnya */
+var GDEF=[["KSB",["1"]],["WKSB",["2"]],["SPV PERKA",["3"]],["SPV PELKOM",["4"]],["SPV CC",["5"]],
+["PPKA",range(6,8)],["PRS",range(9,14)],["PLR",range(15,20)],["ADM",range(21,23)],["PPKW",["33"]],
+["MELOPEN PRS",["12A","13A","14A"]],["MELOPEN PLR",["18A","19A","20A"]]];
 function defaultCan(jab){
   jab=String(jab||"").trim().toUpperCase();
   if(jab==="KSB")return["1"];
@@ -777,7 +775,8 @@ function defaultCan(jab){
   if(/SPV\s*PERKA/.test(jab))return["3"];
   if(/SPV\s*PELKOM/.test(jab))return["4"];
   if(/SPV\s*CC/.test(jab))return["5"];
-  if(/CPRS|CPLR/.test(jab))return["18A","19A","20A"];
+  if(/CPRS/.test(jab))return["12A","13A","14A","18A","19A","20A"];
+  if(/CPLR/.test(jab))return["18A","19A","20A"];
   if(/PPKA/.test(jab))return range(6,8);
   if(/PRS/.test(jab))return range(9,14);
   if(/PLR/.test(jab))return range(15,20);
@@ -789,34 +788,31 @@ function getCan(ri){
   if(!S.can[ri])S.can[ri]=defaultCan(S.rows[ri].cells[S.P.jabIdx]||"");
   return S.can[ri];
 }
+function groupOn(L,g){return g[1].every(function(c){return L.indexOf(c)>=0})}
 function fmtCan(codes){
-  if(!codes.length)return "—";
-  var by={};
-  codes.forEach(function(c){var m=/^(\d+)(A?)$/.exec(c);var k=m?m[2]:"?";(by[k]=by[k]||[]).push(m?{n:+m[1],c:c}:{n:0,c:c})});
-  var out=[];
-  Object.keys(by).sort().forEach(function(k){
-    var L=by[k].sort(function(x,y){return x.n-y.n}),i=0;
-    while(i<L.length){
-      var j=i;while(j+1<L.length&&L[j+1].n===L[j].n+1&&k!=="?")j++;
-      out.push(j>i?L[i].c+"-"+L[j].c:L[i].c);i=j+1;
-    }
-  });
-  return out.join(", ");
+  var names=[],cov={};
+  GDEF.forEach(function(g){if(groupOn(codes,g)){names.push(g[0]);g[1].forEach(function(c){cov[c]=1})}});
+  var rest=codes.filter(function(c){return !cov[c]});
+  var all=names.concat(rest);
+  return all.length?all.join(", "):"—";
 }
 function refreshCanBtn(ri){
   var b=$("bgrid").querySelector('.canb[data-r="'+ri+'"]');
-  if(b){b.textContent=fmtCan(getCan(ri));b.title="Bisa dinas: "+getCan(ri).join(", ")}
+  if(b){b.textContent=fmtCan(getCan(ri));b.title="Bisa dinas: "+fmtCan(getCan(ri))+" (kode "+getCan(ri).join(", ")+")"}
 }
 function openCan(btn){
   closeMenu();
-  var ri=+btn.getAttribute("data-r"),cur=getCan(ri);
+  var ri=+btn.getAttribute("data-r");
   menu=document.createElement("div");menu.id="bauto";menu.className="wide";
   function body(){
-    var all=POS.slice();
-    getCan(ri).forEach(function(c){if(!POS.some(function(p){return p[0]===c}))all.push([c,"kode lain"])});
+    var L=getCan(ri),inG={};
+    GDEF.forEach(function(g){g[1].forEach(function(c){inG[c]=1})});
     var h='<b>Bisa dinas: '+esc(S.rows[ri].cells[1]||"")+'</b><div class="cg">';
-    all.forEach(function(p){
-      h+='<label><input type="checkbox" data-c="'+esc(p[0])+'"'+(getCan(ri).indexOf(p[0])>=0?' checked':'')+'><span><b>'+esc(p[0])+'</b> '+esc(p[1])+'</span></label>';
+    GDEF.forEach(function(g,gi){
+      h+='<label><input type="checkbox" data-g="'+gi+'"'+(groupOn(L,g)?' checked':'')+'><span><b>'+esc(g[0])+'</b> <small>('+esc(g[1].join(","))+')</small></span></label>';
+    });
+    L.forEach(function(c){
+      if(!inG[c])h+='<label><input type="checkbox" data-c="'+esc(c)+'" checked><span><b>'+esc(c)+'</b> <small>(kode lain)</small></span></label>';
     });
     h+='</div><div class="cr"><input type="text" id="bcanx" placeholder="kode lain, mis. 9A"><button type="button" data-a="add">Tambah</button><button type="button" class="sec" data-a="reset">Kembalikan default</button><button type="button" data-a="ok">Selesai</button></div>';
     menu.innerHTML=h;
@@ -830,8 +826,16 @@ function openCan(btn){
   menu.style.left=left+"px";menu.style.top=top+"px";
   menu.onchange=function(e){
     var t=e.target;if(!t||t.type!=="checkbox")return;
-    var c=t.getAttribute("data-c"),L=getCan(ri),i=L.indexOf(c);
-    if(t.checked&&i<0)L.push(c);else if(!t.checked&&i>=0)L.splice(i,1);
+    var L=getCan(ri),gi=t.getAttribute("data-g");
+    if(gi!==null){
+      GDEF[+gi][1].forEach(function(c){
+        var i=L.indexOf(c);
+        if(t.checked&&i<0)L.push(c);else if(!t.checked&&i>=0)L.splice(i,1);
+      });
+    }else{
+      var c2=t.getAttribute("data-c"),i2=L.indexOf(c2);
+      if(!t.checked&&i2>=0){L.splice(i2,1);body()}
+    }
     refreshCanBtn(ri);
   };
   menu.onclick=function(e){
