@@ -940,7 +940,7 @@ $("bto1").onclick=function(){
     if(!S||e.target.tagName==="INPUT")return;
     var td=cellOf(e);if(!td||e.pointerType!=="mouse")return;
     var ae=document.activeElement;
-    if(ae&&ae.tagName==="INPUT"&&g.contains(ae))ae.blur();
+    if(ae&&ae!==document.body&&ae.blur)ae.blur();
     skipClick=true;
     if(brush!==null||pip){drag=true;apply(td);e.preventDefault();return}
     var ri=+td.getAttribute("data-r"),d=+td.getAttribute("data-d");
@@ -984,8 +984,9 @@ $("bto1").onclick=function(){
   document.addEventListener("keydown",function(e){
     if(!S||$("tab2").hidden||!S.sel)return;
     var t=e.target,tag=t&&t.tagName;
-    if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT"||tag==="BUTTON"||tag==="A")return;
+    if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT")return;
     if(e.ctrlKey||e.metaKey||e.altKey)return;
+    if((tag==="BUTTON"||tag==="A")&&(e.key==="Enter"||e.key===" "))return;
     var k=e.key,ed=function(ini){var td=S.tds[S.sel.ar]&&S.tds[S.sel.ar][S.sel.ad];if(td)startEdit(td,ini)};
     if(k==="Delete"||k==="Backspace"){e.preventDefault();clearSelCells()}
     else if(k==="ArrowUp"){e.preventDefault();moveSel(-1,0,e.shiftKey)}
