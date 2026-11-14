@@ -750,6 +750,45 @@ function autoFill(ri,mode){
   }
   return cnt;
 }
+/* ---------- sesuaikan: isi kode dinas yang belum ada pada hari itu ---------- */
+function poolFor(ri){
+  var r=S.rows[ri],jab=(r.cells[S.P.jabIdx]||"").toUpperCase(),pool=null,j,g;
+  if(/CPRS|CPLR/.test(jab))pool=GROUPS[5].slice();
+  else if(/PPKA/.test(jab))pool=GROUPS[0].slice();
+  else if(/PRS/.test(jab))pool=GROUPS[1].concat(GROUPS[2]);
+  else if(/PLR/.test(jab))pool=GROUPS[3].concat(GROUPS[4]);
+  if(!pool){
+    for(j=0;j<S.n&&!pool;j++){g=grpOf(r.vals[j]);if(g)pool=g.g.slice()}
+  }
+  if(!pool)return null;
+  var req=$("breq").value.split(",").map(function(x){return x.trim().toUpperCase()}).filter(Boolean);
+  var f=pool.filter(function(c){return req.indexOf(c)>=0});
+  return f.length?f:pool;
+}
+function adjFill(ri){
+  var r=S.rows[ri],n=S.n,vals=r.vals,pool=poolFor(ri);
+  if(!pool)return null;
+  var cnt=0,full=0;
+  for(var d=0;d<n;d++){
+    if(vals[d]!=="")continue;
+    var have={};
+    for(var oi=0;oi<S.rows.length;oi++){
+      var o=S.rows[oi];
+      if(o.type==="p"&&oi!==ri&&o.vals[d])have[o.vals[d]]=1;
+    }
+    var miss=pool.filter(function(c){return !have[c]});
+    if(!miss.length){full++;continue}
+    var prev=d>0?vals[d-1]:"",pg=grpOf(prev),want=2,wc=null;
+    if(pg){want=(pg.role===2?1:pg.role===1?0:2);wc=pg.g[want]}
+    var best=null,bs=9;
+    miss.forEach(function(c){
+      var gc=grpOf(c),sc=(c===wc)?0:(gc&&gc.role===want)?1:2;
+      if(sc<bs){bs=sc;best=c}
+    });
+    vals[d]=best;r.flags[d]=false;cnt++;
+  }
+  return{cnt:cnt,full:full};
+}
 function closeMenu(){if(menu&&menu.parentNode)menu.parentNode.removeChild(menu);menu=null}
 function openMenu(btn){
   closeMenu();
@@ -758,7 +797,8 @@ function openMenu(btn){
   menu.innerHTML='<b>'+esc(S.rows[ri].cells[1]||"")+'</b>'+
     '<button type="button" data-m="31">Dinasan 3-1</button>'+
     '<button type="button" data-m="61">Dinasan 6-1</button>'+
-    '<button type="button" data-m="same">Sama semua</button>';
+    '<button type="button" data-m="same">Sama semua</button>'+
+    '<button type="button" data-m="adj">Sesuaikan</button>';
   document.body.appendChild(menu);
   var rc=btn.getBoundingClientRect(),mw=menu.offsetWidth||170,mh=menu.offsetHeight||150;
   var left=Math.max(8,Math.min(rc.right-mw,(window.innerWidth||800)-mw-8));
@@ -771,9 +811,19 @@ function openMenu(btn){
   };
 }
 function runAuto(ri,mode){
-  var r=S.rows[ri],nm=r.cells[1]||"",lbl=(mode==="31"?"pola 3-1":mode==="61"?"pola 6-1":"sama semua");
+  var r=S.rows[ri],nm=r.cells[1]||"",lbl=(mode==="31"?"pola 3-1":mode==="61"?"pola 6-1":mode==="adj"?"sesuaikan":"sama semua");
   var empty=0;for(var d=0;d<S.n;d++)if(r.vals[d]==="")empty++;
   if(!empty){msg("Baris "+nm+": tidak ada sel kosong. Blok dan hapus sel yang mau diisi ulang dulu.");return}
+  if(mode==="adj"){
+    push();
+    var o=adjFill(ri);
+    if(!o){S.hist.pop();msg("Baris "+nm+": jenis dinasan tidak dikenali dari jabatannya. Isi satu sel dengan kode dinas dulu sebagai acuan.");return}
+    if(!o.cnt){S.hist.pop();msg("Baris "+nm+": semua kode dinas sudah ada pada hari-hari yang kosong ("+o.full+" hari sudah lengkap), jadi tidak ada yang diisi.");return}
+    for(var d3=0;d3<S.n;d3++)paint(ri,d3);
+    msg("Baris "+nm+": "+o.cnt+" sel terisi dengan kode yang belum ada pada hari itu"+(o.full?" ("+o.full+" hari sudah lengkap, dibiarkan kosong)":"")+".","t-ok");
+    refresh();
+    return;
+  }
   push();
   var c=autoFill(ri,mode);
   if(!c){
