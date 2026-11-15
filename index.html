@@ -490,7 +490,7 @@ function altPref(h,fam){
   return sw>=st;
 }
 function personPlan(P,idx,m){
-  var n=P.n,h=[],d;
+  var n=realN(P),h=[],d;
   for(d=0;d<n;d++)h.push(effVal(P,idx,d));
   var fx=null;
   idx.forEach(function(x){var f=fixedFor(P.rows[x].cells[P.jabIdx]||"");if(f&&!fx)fx=f});
@@ -503,6 +503,10 @@ function personPlan(P,idx,m){
     return{tail:rep(top,m),mode:mode,h:h};
   }
   var comb=h.concat(rep("",m)),fam=famOf(P,idx,h);
+  for(var sk=0;sk<(P.seedN||0)&&sk<m;sk++){
+    var sv=effVal(P,idx,n+sk);
+    if(SHIFT.test(sv)||sv==="L")comb[n+sk]=sv;
+  }
   if(fam==="PPKA")autoCore(comb,mode,{only:GROUPS[0]});
   else if(fam&&altPref(h,fam))autoCycle(comb,cycleFor(fam,mode==="31"?3:6,"A"));
   else autoCore(comb,mode);
@@ -517,6 +521,8 @@ function poolOf(codes){
 function makeNext(P,y,mo){
   var m=new Date(y,mo+1,0).getDate(),names=[],d;
   for(d=0;d<m;d++)names.push(DAYN[new Date(y,mo,d+1).getDay()]);
+  var nxM=(P.srcY!==undefined)?new Date(P.srcY,P.srcM+1,1):null;
+  P.seedN=(P.spill>0&&nxM&&nxM.getFullYear()===y&&nxM.getMonth()===mo)?Math.min(P.spill,m):0;
   var oldCan=(S&&S.P===P&&S.can)?S.can:[];
   function canOf(i){return oldCan[i]||defaultCan(P.rows[i].cells[P.jabIdx]||"")}
   function labelP(i){
@@ -571,7 +577,7 @@ function makeNext(P,y,mo){
   });
   /* tahap 2: orang dengan beberapa posisi menyesuaikan kekurangan */
   plans.filter(function(p){return !p.single}).forEach(function(pl){
-    var pool=poolOf(pl.codes),prev=pl.h[P.n-1]||"";
+    var pool=poolOf(pl.codes),prev=pl.h[pl.h.length-1]||"";
     for(d=0;d<m;d++){
       var c=pl.tail[d];
       if(SHIFT.test(c)){
@@ -602,19 +608,26 @@ function detectSrc(P){
   var t=new Date(),best=null;
   for(var o=-3;o<=3;o++){
     var dt=new Date(t.getFullYear(),t.getMonth()+o,1),y=dt.getFullYear(),m=dt.getMonth();
-    if(new Date(y,m+1,0).getDate()!==P.n)continue;
-    if(DAYN[dt.getDay()]!==P.names[0])continue;
-    if(!best||Math.abs(o)<Math.abs(best.o))best={y:y,m:m,o:o};
+    var dim=new Date(y,m+1,0).getDate(),spill=P.n-dim;
+    if(spill<0||spill>3)continue;
+    var bad=0,i;
+    for(i=0;i<P.n;i++){
+      var nm=P.names[i]||"";
+      if(nm!==""&&nm!==DAYN[(dt.getDay()+i)%7])bad++;
+    }
+    if(bad>2||DAYN[dt.getDay()]!==P.names[0])continue;
+    if(!best||Math.abs(o)<Math.abs(best.o))best={y:y,m:m,o:o,days:dim,spill:spill};
   }
   return best;
 }
+function realN(P){return P.real||P.n}
 
 /* ---------- grid ---------- */
 function buildGrid(){
-  var n=S.n,K=(S.mode==="next"?Math.min(7,S.P.n):0),h='<table class="g" style="min-width:'+((n+K)*22+344)+'px"><thead><tr><th class="s0">Nama</th>';
-  for(var j=S.P.n-K;K&&j<S.P.n;j++){
+  var n=S.n,R=realN(S.P),K=(S.mode==="next"?Math.min(7,R):0),h='<table class="g" style="min-width:'+((n+K)*22+344)+'px"><thead><tr><th class="s0">Nama</th>';
+  for(var j=R-K;K&&j<R;j++){
     var hn=(S.P.names&&S.P.names[j])||"";
-    h+='<th class="hh'+(j===S.P.n-1?' hl':'')+(hn==="MG"?' mg':'')+'" title="Dinasan bulan ini (hanya untuk dilihat, tidak ikut disalin)"><b>'+(j+1)+'</b><small>'+esc(hn)+'</small></th>';
+    h+='<th class="hh'+(j===R-1?' hl':'')+(hn==="MG"?' mg':'')+'" title="Dinasan bulan ini (hanya untuk dilihat, tidak ikut disalin)"><b>'+(j+1)+'</b><small>'+esc(hn)+'</small></th>';
   }
   for(var d=0;d<n;d++){
     var nm=S.names[d]||"";
@@ -627,9 +640,9 @@ function buildGrid(){
     }
     var jab=r.cells[S.P.jabIdx]||"";
     h+='<tr><td class="s0" data-r="'+ri+'"><div><b>'+esc(r.cells[0]||"")+'</b>'+esc(r.cells[1]||"")+'</div><small>'+esc(jab)+'</small></td>';
-    for(var j2=S.P.n-K;K&&j2<S.P.n;j2++){
+    for(var j2=R-K;K&&j2<R;j2++){
       var hv=S.P.rows[ri].vals[j2]||"";
-      h+='<td class="hc'+(j2===S.P.n-1?' hl':'')+' '+cellCls(hv,null)+'" title="'+esc(hv)+'">'+esc(lab(hv))+'</td>';
+      h+='<td class="hc'+(j2===R-1?' hl':'')+' '+cellCls(hv,null)+'" title="'+esc(hv)+'">'+esc(lab(hv))+'</td>';
     }
     for(var d2=0;d2<n;d2++)h+='<td class="c" data-r="'+ri+'" data-d="'+d2+'"></td>';
     h+='<td class="ac cn"><button type="button" class="canb" data-r="'+ri+'" title="Posisi yang bisa diisi orang ini">'+esc(fmtCan(getCan(ri)))+'</button></td><td class="ac"><button type="button" class="autob" data-r="'+ri+'">Otomatis</button></td></tr>';
@@ -908,20 +921,30 @@ var MENU=[["ppka31","PPKA dinasan 3-1"],["ppka61","PPKA dinasan 6-1"],
 ["h","Posisi lain (PPKW, ADM, dll.)"],["31","Pola 3-1"],["61","Pola 6-1"]];
 var MODELBL={};MENU.forEach(function(m){MODELBL[m[0]]=m[1]});
 MODELBL["31"]="pola 3-1";MODELBL["61"]="pola 6-1";
+function histEff(ri){
+  if(!S||S.mode!=="next")return [];
+  var P=S.P,R=realN(P),PR=personRows(ri),h=[];
+  for(var d=0;d<R;d++)h.push(effVal(P,PR,d));
+  return h;
+}
 function autoFill(ri,mode){
-  var r=S.rows[ri],f,m=/^(prs|plr)(31|61)([ab])$/.exec(mode);
+  var r=S.rows[ri],H=histEff(ri),h0=H.length,ctx=H.concat(r.vals),f,m=/^(prs|plr)(31|61)([ab])$/.exec(mode);
   if(m){
-    f=autoCycle(r.vals,cycleFor(m[1].toUpperCase(),m[2]==="31"?3:6,m[3]==="a"?"A":"B"));
+    f=autoCycle(ctx,cycleFor(m[1].toUpperCase(),m[2]==="31"?3:6,m[3]==="a"?"A":"B"));
   }else{
     var base=(mode==="ppka31"?"31":mode==="ppka61"?"61":mode);
-    f=autoCore(r.vals,base,{only:(mode==="ppka31"||mode==="ppka61")?GROUPS[0]:null,can:getCan(ri),have:function(dd){
-      var h={};
-      S.rows.forEach(function(o,oi){if(o.type==="p"&&oi!==ri&&SHIFT.test(o.vals[dd]))h[o.vals[dd]]=1});
+    f=autoCore(ctx,base,{only:(mode==="ppka31"||mode==="ppka61")?GROUPS[0]:null,can:getCan(ri),have:function(dd){
+      var h={},k=dd-h0;
+      if(k<0)return h;
+      S.rows.forEach(function(o,oi){if(o.type==="p"&&oi!==ri&&SHIFT.test(o.vals[k]))h[o.vals[k]]=1});
       return h;
     }});
   }
-  f.forEach(function(d){r.flags[d]=false});
-  return f.length;
+  var cnt=0,d;
+  for(d=0;d<r.vals.length;d++){
+    if(r.vals[d]===""&&ctx[h0+d]!==""){r.vals[d]=ctx[h0+d];r.flags[d]=false;cnt++}
+  }
+  return cnt;
 }
 function chooseBest(miss,prev){
   var pg=grpOf(prev),want=2,wc=null;
@@ -1062,6 +1085,10 @@ function adjFill(ri){
     var miss=pool.filter(function(c){return !have[c]});
     if(!miss.length){full++;continue}
     var prev="";
+    if(d===0&&S.mode==="next"){
+      var HH=histEff(ri);
+      for(var hi2=HH.length-1;hi2>=0;hi2--){if(SHIFT.test(HH[hi2])||HH[hi2]==="L"){prev=HH[hi2];break}}
+    }
     if(d>0){
       prev=vals[d-1];
       PR.forEach(function(x){
@@ -1226,11 +1253,14 @@ $("bedit").onclick=function(){
 $("bnext").onclick=function(){
   var P=getP();if(!P)return;
   var src=detectSrc(P),t=new Date(),nx;
+  P.real=src?src.days:P.n;P.spill=src?src.spill:0;
+  P.srcY=src?src.y:undefined;P.srcM=src?src.m:undefined;
   if(src)nx=new Date(src.y,src.m+1,1);else nx=new Date(t.getFullYear(),t.getMonth()+1,1);
   var ty=nx.getFullYear(),tm=nx.getMonth();
   $("bmon").value=String(tm);$("byear").value=String(ty);
   makeNext(P,ty,tm);
   var warn=[];
+  if(src&&src.spill>0)warn.push("Roster ini punya "+P.n+" kolom padahal "+MON[src.m]+" hanya "+src.days+" hari. Kolom "+(src.days+1)+(src.spill>1?"-"+P.n:"")+" dianggap awal "+MON[nx.getMonth()]+" (tidak dipakai sebagai akhir bulan), dan dipakai sebagai hari pertama bila isinya kode dinas atau L.");
   if(!P.hasHeader)warn.push("Baris tanggal tidak ditemukan.");
   if(!src)warn.push("Bulan roster tidak bisa dideteksi dari nama hari, jadi bulan tujuan diset otomatis ke "+MON[tm]+" "+ty+". Ubah bila salah, lalu klik Buat ulang.");
   msg(warn.join(" "));
