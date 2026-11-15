@@ -103,6 +103,8 @@ table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;
 #bauto .cr input{width:120px}
 #bauto .cr button{padding:5px 10px;font-size:12px}
 #bauto{position:fixed;z-index:60;background:var(--card);color:var(--tx);border:1px solid var(--bd);border-radius:10px;padding:8px;box-shadow:0 6px 24px rgba(0,0,0,.28);display:flex;flex-direction:column;gap:6px;min-width:160px}
+#bauto{max-height:calc(100vh - 16px);overflow:auto}
+#bauto .mh{font-size:11px;color:var(--mut);margin-top:4px;border-top:1px solid var(--bd);padding-top:6px}
 #bauto b{font-size:12px;color:var(--mut);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #bauto button{padding:8px 12px;font-size:14px;text-align:left}
 </style>
@@ -455,6 +457,38 @@ function detectMode(h){
   if(mx>=1)return "31";
   return(ls/known>=0.2)?"31":"61";
 }
+function famOfCode(c){
+  if(!/^\d+$/.test(c))return "";
+  var k=+c;
+  return(k>=6&&k<=8)?"PPKA":(k>=9&&k<=14)?"PRS":(k>=15&&k<=20)?"PLR":"";
+}
+function famOf(P,idx,h){
+  for(var i=h.length-1;i>=0;i--){var f=famOfCode(h[i]);if(f)return f}
+  for(var j=0;j<idx.length;j++){
+    var jab=(P.rows[idx[j]].cells[P.jabIdx]||"").toUpperCase();
+    if(/CPRS|CPLR/.test(jab))continue;
+    if(/PPKA/.test(jab))return "PPKA";
+    if(/PRS/.test(jab))return "PRS";
+    if(/PLR/.test(jab))return "PLR";
+  }
+  return "";
+}
+/* apakah orang ini biasanya bergantian kelompok (A lalu B) antar blok dinas */
+function altPref(h,fam){
+  var X=FAM[fam];if(!X)return false;
+  function gid(c){return X.A.indexOf(c)>=0?"A":X.B.indexOf(c)>=0?"B":""}
+  var prevB="",cur="",sw=0,st=0;
+  h.forEach(function(v){
+    var g=gid(v);
+    if(g){
+      if(cur===""){if(prevB){if(prevB===g)st++;else sw++}cur=g}
+      else if(cur!==g){sw++;cur=g}
+    }else if(v==="L"){if(cur){prevB=cur;cur=""}}
+    else{prevB="";cur=""}
+  });
+  if(sw+st===0)return true;
+  return sw>=st;
+}
 function personPlan(P,idx,m){
   var n=P.n,h=[],d;
   for(d=0;d<n;d++)h.push(effVal(P,idx,d));
@@ -468,8 +502,10 @@ function personPlan(P,idx,m){
     h.forEach(function(v){if(SHIFT.test(v)){cnt[v]=(cnt[v]||0)+1;if(cnt[v]>tc){tc=cnt[v];top=v}}});
     return{tail:rep(top,m),mode:mode,h:h};
   }
-  var comb=h.concat(rep("",m));
-  autoCore(comb,mode);
+  var comb=h.concat(rep("",m)),fam=famOf(P,idx,h);
+  if(fam==="PPKA")autoCore(comb,mode,{only:GROUPS[0]});
+  else if(fam&&altPref(h,fam))autoCycle(comb,cycleFor(fam,mode==="31"?3:6,"A"));
+  else autoCore(comb,mode);
   return{tail:comb.slice(n),mode:mode,h:h};
 }
 function poolOf(codes){
@@ -784,7 +820,7 @@ function grpOf(code){
 }
 /* urutan GROUPS tiap kelompok: [pagi, siang, malam]; setelah libur selalu mulai dari malam */
 function autoCore(vals,mode,opts){
-  var n=vals.length,lim=(mode==="31"?3:6),filled=[],d;
+  var n=vals.length,lim=(mode==="31"?3:6),filled=[],d,only=(opts&&opts.only)||null;
   /* acuan cadangan dari daftar Bisa dinas, dipakai kalau baris belum punya satu pun kode dinas */
   function pickFb(dd){
     if(!opts||!opts.can)return null;
@@ -820,6 +856,7 @@ function autoCore(vals,mode,opts){
       nv=nearShift(d-1)||firstCode();
     }else{
       var pg=grpOf(prev);
+      if(only&&pg&&pg.g!==only)pg=null;
       if(pg){
         if(pg.role===2)nv=pg.g[1];
         else if(pg.role===1)nv=pg.g[0];
@@ -828,10 +865,10 @@ function autoCore(vals,mode,opts){
           if(rl.trunc){var f=grpOf(vals[0]);if(f)run+=(2-f.role)}
           nv=(run>=lim)?"L":pg.g[2];
         }
-      }else if(SHIFT.test(prev)){
+      }else if(!only&&SHIFT.test(prev)){
         nv=(runLen(d).run>=lim)?"L":prev;
       }else{
-        var g=nearGrp(d-1)||pickFb(d);
+        var g=only||nearGrp(d-1)||pickFb(d);
         nv=g?g[2]:nearShift(d-1);
         if(nv==="")nv=firstCode();
       }
@@ -841,13 +878,48 @@ function autoCore(vals,mode,opts){
   }
   return filled;
 }
+/* PRS dan PLR: dua kelompok yang bergantian. Kode dari malam, siang, pagi. */
+var FAM={PRS:{A:["11","10","9"],B:["14","13","12"]},PLR:{A:["17","16","15"],B:["20","19","18"]}};
+function cycleFor(fam,len,start){
+  var X=FAM[fam],a=X[start],b=X[start==="A"?"B":"A"];
+  return len===3?a.concat(["L"],b,["L"]):a.concat(b,["L"]);
+}
+/* melanjutkan siklus C dari sel sebelumnya; kalau belum ada acuan, mulai dari awal siklus (malam kelompok "mulai") */
+function autoCycle(vals,C){
+  var n=vals.length,len=C.length,filled=[],d;
+  for(d=0;d<n;d++){
+    if(vals[d]!=="")continue;
+    var prev=d>0?vals[d-1]:"",nx=0,i;
+    if(prev!==""&&prev!=="L"){
+      i=C.indexOf(prev);
+      nx=(i>=0)?(i+1)%len:0;
+    }else if(prev==="L"){
+      var q=d>=2?vals[d-2]:"",qi=C.indexOf(q);
+      nx=(qi>=0&&C[(qi+1)%len]==="L")?(qi+2)%len:0;
+    }
+    vals[d]=C[nx];filled.push(d);
+  }
+  return filled;
+}
+var MENU=[["ppka31","PPKA dinasan 3-1"],["ppka61","PPKA dinasan 6-1"],
+["prs31a","PRS 3-1 mulai RS A"],["prs31b","PRS 3-1 mulai RS B"],["prs61a","PRS 6-1 mulai RS A"],["prs61b","PRS 6-1 mulai RS B"],
+["plr31a","PLR 3-1 mulai PLR 1"],["plr31b","PLR 3-1 mulai PLR 2"],["plr61a","PLR 6-1 mulai PLR 1"],["plr61b","PLR 6-1 mulai PLR 2"],
+["same","Sama Semua"],["adj","Sesuaikan"],
+["h","Posisi lain (PPKW, ADM, dll.)"],["31","Pola 3-1"],["61","Pola 6-1"]];
+var MODELBL={};MENU.forEach(function(m){MODELBL[m[0]]=m[1]});
+MODELBL["31"]="pola 3-1";MODELBL["61"]="pola 6-1";
 function autoFill(ri,mode){
-  var r=S.rows[ri];
-  var f=autoCore(r.vals,mode,{can:getCan(ri),have:function(dd){
-    var h={};
-    S.rows.forEach(function(o,oi){if(o.type==="p"&&oi!==ri&&SHIFT.test(o.vals[dd]))h[o.vals[dd]]=1});
-    return h;
-  }});
+  var r=S.rows[ri],f,m=/^(prs|plr)(31|61)([ab])$/.exec(mode);
+  if(m){
+    f=autoCycle(r.vals,cycleFor(m[1].toUpperCase(),m[2]==="31"?3:6,m[3]==="a"?"A":"B"));
+  }else{
+    var base=(mode==="ppka31"?"31":mode==="ppka61"?"61":mode);
+    f=autoCore(r.vals,base,{only:(mode==="ppka31"||mode==="ppka61")?GROUPS[0]:null,can:getCan(ri),have:function(dd){
+      var h={};
+      S.rows.forEach(function(o,oi){if(o.type==="p"&&oi!==ri&&SHIFT.test(o.vals[dd]))h[o.vals[dd]]=1});
+      return h;
+    }});
+  }
   f.forEach(function(d){r.flags[d]=false});
   return f.length;
 }
@@ -1015,16 +1087,16 @@ function openMenu(btn){
   closeMenu();
   var ri=+btn.getAttribute("data-r");
   menu=document.createElement("div");menu.id="bauto";
-  menu.innerHTML='<b>'+esc(S.rows[ri].cells[1]||"")+'</b>'+
-    '<button type="button" data-m="31">Dinasan 3-1</button>'+
-    '<button type="button" data-m="61">Dinasan 6-1</button>'+
-    '<button type="button" data-m="same">Sama semua</button>'+
-    '<button type="button" data-m="adj">Sesuaikan</button>';
+  var mh0='<b>'+esc(S.rows[ri].cells[1]||"")+'</b>';
+  MENU.forEach(function(m){
+    mh0+=(m[0]==="h")?'<div class="mh">'+esc(m[1])+'</div>':'<button type="button" data-m="'+m[0]+'">'+esc(m[1])+'</button>';
+  });
+  menu.innerHTML=mh0;
   document.body.appendChild(menu);
   var rc=btn.getBoundingClientRect(),mw=menu.offsetWidth||170,mh=menu.offsetHeight||150;
   var left=Math.max(8,Math.min(rc.right-mw,(window.innerWidth||800)-mw-8));
   var top=rc.bottom+4;
-  if(top+mh>(window.innerHeight||600)-8)top=Math.max(8,rc.top-mh-4);
+  top=Math.max(8,Math.min(top,(window.innerHeight||600)-mh-8));
   menu.style.left=left+"px";menu.style.top=top+"px";
   menu.onclick=function(e){
     var b=e.target.closest?e.target.closest("button"):null;if(!b)return;
@@ -1032,7 +1104,7 @@ function openMenu(btn){
   };
 }
 function runAuto(ri,mode){
-  var r=S.rows[ri],nm=r.cells[1]||"",lbl=(mode==="31"?"pola 3-1":mode==="61"?"pola 6-1":mode==="adj"?"sesuaikan":"sama semua");
+  var r=S.rows[ri],nm=r.cells[1]||"",lbl=(MODELBL[mode]||(mode==="adj"?"sesuaikan":"sama semua"));
   var empty=0;for(var d=0;d<S.n;d++)if(r.vals[d]==="")empty++;
   if(!empty){msg("Baris "+nm+": tidak ada sel kosong. Blok dan hapus sel yang mau diisi ulang dulu.");return}
   if(mode==="adj"){
