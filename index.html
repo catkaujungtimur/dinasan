@@ -496,6 +496,8 @@ function personPlan(P,idx,m){
   idx.forEach(function(x){var f=fixedFor(P.rows[x].cells[P.jabIdx]||"");if(f&&!fx)fx=f});
   if(fx)return{tail:rep(fx,m),mode:"fixed",h:h};
   var mode=detectMode(h);
+  /* PPKA, PRS, dan PLR dibuat 3-1 semua; 6-1 diatur manual bila perlu */
+  if(famOf(P,idx,h))mode="31";
   if(!mode)return{tail:rep("",m),mode:null,h:h};
   if(mode==="same"){
     var cnt={},top="",tc=0;
@@ -729,7 +731,7 @@ function renderNotes(){
   if(!S||S.mode!=="next"){$("bnotes").innerHTML="";return}
   var warn=S.notes.filter(function(x){return !x.mode||x.empty||x.adj});
   var h='<div class="card"><b>Catatan pola</b>'+
-   '<p style="margin:6px 0">Pola tiap orang dibaca dari dinasan bulan ini (3-1, 6-1, atau sama semua), lalu dilanjutkan dari hari terakhir bulan ini. Kode khusus seperti CT, SOE, BKS, diklat, dan JOCUP diabaikan. Orang yang hanya punya satu posisi di kolom Bisa dinas diisi lebih dulu, lalu orang dengan beberapa posisi (mis. Helmi dan Listianto) menyesuaikan kekurangannya. Setelah mengubah Bisa dinas, klik <b>Buat ulang</b> agar dihitung ulang. Pola per orang bisa dibetulkan lewat tombol Otomatis.</p>';
+   '<p style="margin:6px 0">PPKA, PRS, dan PLR selalu dibuat 3-1 (kalau perlu 6-1, ubah manual lewat tombol Otomatis). KS, WKS, SPV, dan PPKW mengikuti pola bulan ini. Semuanya dilanjutkan dari hari terakhir bulan ini. Kode khusus seperti CT, SOE, BKS, diklat, dan JOCUP diabaikan. Orang yang hanya punya satu posisi di kolom Bisa dinas diisi lebih dulu, lalu orang dengan beberapa posisi (mis. Helmi dan Listianto) menyesuaikan kekurangannya. Setelah mengubah Bisa dinas, klik <b>Buat ulang</b> agar dihitung ulang. Pola per orang bisa dibetulkan lewat tombol Otomatis.</p>';
   if(!warn.length)h+='<span class="tag t-ok">Semua pola terbaca</span>';
   else{
     h+='<p style="margin:6px 0"><small>Mohon dicek:</small></p>'+warn.map(function(x){
