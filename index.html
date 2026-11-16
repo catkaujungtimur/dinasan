@@ -85,6 +85,13 @@ table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;
 .g th.hh.mg{color:var(--bad)}
 .g td.hc{color:var(--mut);font-size:10.5px;opacity:.78}
 .g th.hl,.g td.hl{border-right:3px solid var(--ac)}
+.g thead tr.mr th{top:38px;height:auto;background:var(--card);font-size:10px;line-height:1.15;font-weight:700;vertical-align:top;padding:2px 0;color:var(--mut)}
+.g thead tr.mr th.s0{font-size:11px;padding-left:8px}
+.g thead tr.mr th.mc.has{background:var(--badb);color:var(--bad)}
+.g th.mc span{display:block;cursor:pointer;border-radius:3px}
+.g th.mc span:hover{background:var(--bad);color:#fff}
+.g th.mc span.ma{color:var(--warn)}
+.g th.mc span.mo{cursor:default;font-weight:600}
 .g td.c:empty::after{content:"\00b7";color:var(--mut);opacity:.45}
 .g td.c.sel{background-image:linear-gradient(rgba(31,95,191,.38),rgba(31,95,191,.38))}
 .g td.c.anc{outline:2px solid var(--ac);outline-offset:-2px}
@@ -127,7 +134,7 @@ table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;
 <label for="inp">1. Tempel tabel roster (dari baris tanggal sampai baris terakhir)</label>
 <textarea id="inp" wrap="off" spellcheck="false" placeholder="Blok tabel di Google Sheets, Ctrl+C, lalu Ctrl+V di sini"></textarea>
 <label for="req" style="margin-top:12px">2. Kode yang wajib ada setiap hari <small>(pisahkan dengan koma)</small></label>
-<input type="text" id="req" value="6,7,8,9,10,11,12,13,14,15,16,17,18,19,20">
+<input type="text" id="req" value="6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,18A,19A,20A">
 <div class="row">
 <button id="go">Cek</button>
 <button class="sec" id="edt">Edit</button>
@@ -155,7 +162,7 @@ table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;
 <details>
 <summary>Pengaturan cek otomatis (opsional)</summary>
 <label for="breq" style="margin-top:10px">Kode yang wajib ada setiap hari <small>(pisahkan dengan koma)</small></label>
-<input type="text" id="breq" value="6,7,8,9,10,11,12,13,14,15,16,17,18,19,20">
+<input type="text" id="breq" value="6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,18A,19A,20A">
 </details>
 </div>
 
@@ -189,7 +196,7 @@ table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;
 
 <div class="card" id="bgcard">
 <div class="gw" id="bgrid"></div>
-<p style="margin:10px 0 0"><small>Header tanggal merah = ada kode dobel/kosong pada tanggal itu. Kotak berbingkai merah = kode dobel. Bingkai kuning putus-putus = pola tidak terbaca, isi manual. Abu-abu pada SPV = wakilan. Pada Buat Dinasan Bulan Depan, 7 kolom pucat di kiri tanggal 1 adalah dinasan akhir bulan ini (hanya untuk dilihat, tidak ikut disalin). Blok sel lalu Ctrl+C untuk menyalin sebagian, Ctrl+X untuk memotong, Ctrl+V untuk menempel.</small></p>
+<p style="margin:10px 0 0"><small>Header tanggal merah = ada kode dobel/kosong pada tanggal itu, dan baris "Kurang" di bawah tanggal menunjukkan kode wajib yang belum ada (klik kodenya untuk memakainya sebagai kuas). Kotak berbingkai merah = kode dobel. Bingkai kuning putus-putus = pola tidak terbaca, isi manual. Abu-abu pada SPV = wakilan. Pada Buat Dinasan Bulan Depan, 7 kolom pucat di kiri tanggal 1 adalah dinasan akhir bulan ini (hanya untuk dilihat, tidak ikut disalin). Blok sel lalu Ctrl+C untuk menyalin sebagian, Ctrl+X untuk memotong, Ctrl+V untuk menempel.</small></p>
 </div>
 
 <div id="bres"></div>
@@ -635,7 +642,11 @@ function buildGrid(){
     var nm=S.names[d]||"";
     h+='<th class="dh'+(nm==="MG"?' mg':'')+'"><b>'+(d+1)+'</b><small>'+esc(nm)+'</small></th>';
   }
-  h+='<th class="ac cn">Bisa dinas</th><th class="ac">Otomatis</th></tr></thead><tbody>';
+  h+='<th class="ac cn">Bisa dinas</th><th class="ac">Otomatis</th></tr>';
+  h+='<tr class="mr"><th class="s0" title="Kode wajib yang belum ada pada tanggal itu. Klik kode untuk memakainya sebagai kuas.">Kurang</th>';
+  for(var jj=0;K&&jj<K;jj++)h+='<th class="hh'+(jj===K-1?' hl':'')+'"></th>';
+  for(var dd=0;dd<n;dd++)h+='<th class="mc" data-d="'+dd+'"></th>';
+  h+='<th class="ac cn"></th><th class="ac"></th></tr></thead><tbody>';
   S.rows.forEach(function(r,ri){
     if(r.type==="sec"){
       h+='<tr class="sec"><td class="s0">'+esc(r.label)+'</td><td colspan="'+(n+K+2)+'"></td></tr>';return;
@@ -651,7 +662,9 @@ function buildGrid(){
   });
   h+='</tbody></table>';
   $("bgrid").innerHTML=h;
-  S.tds=[];S.ths=$("bgrid").querySelectorAll("th.dh");
+  S.tds=[];S.ths=$("bgrid").querySelectorAll("th.dh");S.mcs=$("bgrid").querySelectorAll("th.mc");
+  var hr1=$("bgrid").querySelector("thead tr"),h1=(hr1&&hr1.offsetHeight)||38;
+  Array.prototype.forEach.call($("bgrid").querySelectorAll("thead tr.mr th"),function(t){t.style.top=h1+"px"});
   var list=$("bgrid").querySelectorAll("td.c");
   for(var i=0;i<list.length;i++){
     var td=list[i],r2=+td.getAttribute("data-r"),d3=+td.getAttribute("data-d");
@@ -695,6 +708,20 @@ function refresh(){
   if(!S)return;
   var A=analyzeB();
   A.res.forEach(function(x,d){var th=S.ths[d];if(th)th.classList.toggle("bad",!!(x.dup.length||x.miss.length))});
+  A.res.forEach(function(x,d){
+    var th=S.mcs&&S.mcs[d];if(!th)return;
+    var ms=x.miss.slice().sort(function(a,b){
+      var aa=/A$/.test(a)?1:0,bb=/A$/.test(b)?1:0;
+      return aa!==bb?aa-bb:a.localeCompare(b,undefined,{numeric:true});
+    }),html="",i;
+    for(i=0;i<ms.length&&i<5;i++){
+      html+='<span data-c="'+esc(ms[i])+'"'+(/A$/.test(ms[i])?' class="ma"':'')+' title="Kode '+esc(ms[i])+' belum ada. Klik untuk memakainya sebagai kuas.">'+esc(ms[i])+'</span>';
+    }
+    if(ms.length>5)html+='<span class="mo" title="'+esc(ms.slice(5).join(", "))+'">+'+(ms.length-5)+'</span>';
+    th.innerHTML=html;
+    th.title=ms.length?("Tanggal "+(d+1)+" belum ada kode: "+ms.join(", ")):"";
+    th.classList.toggle("has",ms.length>0);
+  });
   S.rows.forEach(function(r,ri){
     if(r.type!=="p")return;
     for(var d=0;d<S.n;d++){
@@ -1338,6 +1365,11 @@ $("bto1").onclick=function(){
   });
   g.addEventListener("click",function(e){
     if(!S)return;
+    var mcs=e.target.closest?e.target.closest("th.mc span[data-c]"):null;
+    if(mcs){
+      brush=mcs.getAttribute("data-c");pip=false;$("bcus").value="";syncPal();
+      msg("Kuas: "+brush+". Klik sel kosong untuk mengisinya.","t-ok");return;
+    }
     var ab=e.target.closest?e.target.closest(".autob"):null;
     if(ab){openMenu(ab);return}
     var cb=e.target.closest?e.target.closest(".canb"):null;
