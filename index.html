@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -90,6 +91,7 @@ table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;
 .g tr.sec td.mc span{display:block;cursor:pointer;border-radius:3px}
 .g tr.sec td.mc span:hover{background:var(--bad);color:#fff}
 .g tr.sec td.mc span.ma{color:var(--warn)}
+.g tr.sec td.mc.okc{color:var(--ok,#1a7f37);font-size:12px;cursor:default}
 .g tr.sec td.mc span.mo{cursor:default;font-weight:600}
 .g td.c:empty::after{content:"\00b7";color:var(--mut);opacity:.45}
 .g td.c.sel{background-image:linear-gradient(rgba(31,95,191,.38),rgba(31,95,191,.38))}
@@ -718,6 +720,7 @@ function refresh(){
   if(!S)return;
   var A=analyzeB();
   A.res.forEach(function(x,d){var th=S.ths[d];if(th)th.classList.toggle("bad",!!(x.dup.length||x.miss.length))});
+  var req=$("breq").value.split(",").map(function(x){return x.trim().toUpperCase()}).filter(Boolean);
   Array.prototype.forEach.call(S.mcs||[],function(th){
     var d=+th.getAttribute("data-d"),x=A.res[d],sc=secCodes(S.rows[+th.getAttribute("data-sr")].label)||[];
     if(!x)return;
@@ -729,8 +732,11 @@ function refresh(){
       html+='<span data-c="'+esc(ms[i])+'"'+(/A$/.test(ms[i])?' class="ma"':'')+' title="Kode '+esc(ms[i])+' belum ada. Klik untuk memakainya sebagai kuas.">'+esc(ms[i])+'</span>';
     }
     if(ms.length>4)html+='<span class="mo" title="'+esc(ms.slice(4).join(", "))+'">+'+(ms.length-4)+'</span>';
+    var rq=sc.some(function(k){return req.indexOf(k)>=0});
+    if(!ms.length&&rq){html="✓";th.title="Tanggal "+(d+1)+": semua kode posisi ini sudah lengkap"}
+    th.classList.toggle("okc",!ms.length&&rq);
     th.innerHTML=html;
-    th.title=ms.length?("Tanggal "+(d+1)+" belum ada kode posisi ini: "+ms.join(", ")):"";
+    if(ms.length)th.title="Tanggal "+(d+1)+" belum ada kode posisi ini: "+ms.join(", ");else if(!rq)th.title="";
     th.classList.toggle("has",ms.length>0);
   });
   S.rows.forEach(function(r,ri){
